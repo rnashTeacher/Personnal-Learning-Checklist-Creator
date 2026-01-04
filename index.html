@@ -7,8 +7,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <!-- Include SheetJS library for reading spreadsheet files -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- Include QRCode library for generating QR codes -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
 
-    <title>PLC Generatot</title>
+    <title>PLC Generator</title>
     <style>
         /* Basic CSS for styling */
         body {
@@ -80,7 +83,8 @@
             border: 1px solid #ccc;
             padding: 10px;
             border-radius: 5px;
-            width: 22%;
+            width: 11%;
+            width: 9%;
         }
 
         .selection-box.selection-required {
@@ -114,6 +118,16 @@
             background-color: #d1ecf1 !important; /* A light blue to indicate selection */
         }
 
+        /* Style for the selected topic name row */
+        #data-display tr.selected-topic-row {
+            background-color: #d6d8db !important; /* Light gray */
+        }
+
+        /* Style for the selected resource row */
+        #data-display tr.selected-resource-row {
+            background-color: #e2e3e5 !important; /* Darker gray/blue */
+        }
+
         /* Style for the selected grade column */
         #data-display .selected-grade-column {
             background-color: #cce5ff !important; /* A different blue for the entire column */
@@ -121,6 +135,20 @@
         #data-display td.clickable-cell:hover {
             background-color: #f1f1f1;
             cursor: pointer;
+        }
+        
+        /* Style for the selected topic columns */
+        #data-display .selected-first-topic-column {
+            background-color: #ffeeba !important; /* Light yellow for first topic column */
+        }
+
+        #data-display .selected-last-topic-column {
+            background-color: #fff3cd !important; /* Slightly lighter yellow for last topic column */
+        }
+
+        /* Style for the selected max score row */
+        #data-display tr.selected-max-score-row {
+            background-color: #e2d9f3 !important; /* A light purple */
         }
 
         /* Styles for main action buttons */
@@ -138,6 +166,7 @@
             border: none;
             cursor: pointer;
         }
+
     </style>
 </head>
 <body>
@@ -147,7 +176,7 @@
         <img src="your-logo.png" alt="Company Logo" class="logo">
 
         <!-- Page Title -->
-        <h1>Welcome to PLC Generatot</h1>
+        <h1>Welcome to PLC Generator</h1>
 
         <!-- File Input and Data Display Area -->
         <p>Select a spreadsheet file (.xlsx, .xls, .csv) to view its contents.</p>
@@ -165,6 +194,31 @@
                 <h3>Student Grade</h3>
                 <button id="select-grade-btn">Select Column</button>
                 <div id="grade-column-info">Not selected</div>
+            </div>
+            <div class="selection-box selection-required">
+                <h3>Topic Name Row</h3>
+                <button id="select-topic-row-btn">Select Row</button>
+                <div id="topic-row-info">Not selected</div>
+            </div>
+            <div class="selection-box selection-required">
+                <h3>Resource Row</h3>
+                <button id="select-resource-row-btn">Select Row</button>
+                <div id="resource-row-info">Not selected</div>
+            </div>
+            <div class="selection-box selection-required">
+                <h3>First Topic</h3>
+                <button id="select-topic-btn">Select Column</button>
+                <div id="topic-info">Not selected</div>
+            </div>
+            <div class="selection-box selection-required">
+                <h3>Last Topic</h3>
+                <button id="select-last-topic-btn">Select Column</button>
+                <div id="last-topic-info">Not selected</div>
+            </div>
+            <div class="selection-box selection-required">
+                <h3>Max Score Row</h3>
+                <button id="select-max-score-btn">Select Row</button>
+                <div id="max-score-info">Not selected</div>
             </div>
             <div class="selection-box selection-required">
                 <h3>First Student</h3>
@@ -203,10 +257,25 @@
         const headerInfo = document.getElementById('header-info');
         const selectGradeBtn = document.getElementById('select-grade-btn');
         const gradeColumnInfo = document.getElementById('grade-column-info');
-
-        let selectionMode = null; // Can be 'first', 'last', 'grade', or null
+        const selectTopicRowBtn = document.getElementById('select-topic-row-btn');
+        const topicRowInfo = document.getElementById('topic-row-info');
+        const selectResourceRowBtn = document.getElementById('select-resource-row-btn');
+        const resourceRowInfo = document.getElementById('resource-row-info');
+        const selectTopicBtn = document.getElementById('select-topic-btn');
+        const topicInfo = document.getElementById('topic-info');
+        const selectLastTopicBtn = document.getElementById('select-last-topic-btn');
+        const lastTopicInfo = document.getElementById('last-topic-info');
+        const selectMaxScoreBtn = document.getElementById('select-max-score-btn');
+        const maxScoreInfo = document.getElementById('max-score-info');
+        
+        let selectionMode = null; // e.g., 'first', 'grade', 'first-topic-column', 'max-score', 'topic-row'
         let firstStudent = null; // Will store { data, index }
         let lastStudent = null; // Will store { data, index }
+        let firstTopicColumnIndex = null; // Will store the index of the first topic column
+        let lastTopicColumnIndex = null; // Will store the index of the last topic column
+        let topicNameRowIndex = null; // Will store the index of the row containing topic names
+        let resourceRowIndex = null; // Will store the index of the row containing resources
+        let maxScoreRowIndex = null; // Will store the index of the row containing max scores
         let headerImageData = null; // Will store the Base64 data URL of the header image
         let gradeColumnIndex = null; // Will store the index of the grade column
         let sheetData = [];
@@ -224,6 +293,31 @@
         selectGradeBtn.addEventListener('click', () => {
             selectionMode = 'grade';
             selectionStatus.textContent = 'Selection Mode: Click any cell in the column containing the Student Grade.';
+        });
+
+        selectTopicRowBtn.addEventListener('click', () => {
+            selectionMode = 'topic-row';
+            selectionStatus.textContent = 'Selection Mode: Click the row containing the Topic Names.';
+        });
+
+        selectResourceRowBtn.addEventListener('click', () => {
+            selectionMode = 'resource-row';
+            selectionStatus.textContent = 'Selection Mode: Click the row containing the Resources.';
+        });
+
+        selectTopicBtn.addEventListener('click', () => {
+            selectionMode = 'first-topic-column';
+            selectionStatus.textContent = 'Selection Mode: Click any cell in the column containing the First Topic.';
+        });
+
+        selectLastTopicBtn.addEventListener('click', () => {
+            selectionMode = 'last-topic-column';
+            selectionStatus.textContent = 'Selection Mode: Click any cell in the column containing the Last Topic.';
+        });
+
+        selectMaxScoreBtn.addEventListener('click', () => {
+            selectionMode = 'max-score-row';
+            selectionStatus.textContent = 'Selection Mode: Click the row containing the Maximum Scores.';
         });
 
         headerImageInput.addEventListener('change', (event) => {
@@ -350,18 +444,64 @@
                     }
                 });
 
-            } else { // Handle 'first' and 'last' student selection
+            } else if (selectionMode === 'topic-row') {
+                const clickedRow = event.currentTarget;
+                const rowIndex = parseInt(clickedRow.dataset.rowIndex, 10);
+                
+                topicNameRowIndex = rowIndex;
+                topicRowInfo.textContent = `Selected: Row ${rowIndex + 1}`;
+                
+                const box = selectTopicRowBtn.closest('.selection-box');
+                box.classList.remove('selection-required');
+                box.classList.add('selection-complete');
+
+                const prevSelected = dataDisplay.querySelector('.selected-topic-row');
+                if (prevSelected) {
+                    prevSelected.classList.remove('selected-topic-row');
+                }
+                clickedRow.classList.add('selected-topic-row');
+            } else if (selectionMode === 'resource-row') {
+                const clickedRow = event.currentTarget;
+                const rowIndex = parseInt(clickedRow.dataset.rowIndex, 10);
+                
+                resourceRowIndex = rowIndex;
+                resourceRowInfo.textContent = `Selected: Row ${rowIndex + 1}`;
+                
+                const box = selectResourceRowBtn.closest('.selection-box');
+                box.classList.remove('selection-required');
+                box.classList.add('selection-complete');
+
+                const prevSelected = dataDisplay.querySelector('.selected-resource-row');
+                if (prevSelected) {
+                    prevSelected.classList.remove('selected-resource-row');
+                }
+                clickedRow.classList.add('selected-resource-row');
+            } else if (selectionMode === 'max-score-row') {
+                const clickedRow = event.currentTarget;
+                const rowIndex = parseInt(clickedRow.dataset.rowIndex, 10);
+                
+                maxScoreRowIndex = rowIndex;
+                maxScoreInfo.textContent = `Selected: Row ${rowIndex + 1}`;
+                
+                const box = selectMaxScoreBtn.closest('.selection-box');
+                box.classList.remove('selection-required');
+                box.classList.add('selection-complete');
+
+                const prevSelected = dataDisplay.querySelector('.selected-max-score-row');
+                if (prevSelected) {
+                    prevSelected.classList.remove('selected-max-score-row');
+                }
+                clickedRow.classList.add('selected-max-score-row');
+            } else if (selectionMode === 'first' || selectionMode === 'last') {
                 const clickedRow = event.currentTarget;
                 const rowIndex = parseInt(clickedRow.dataset.rowIndex, 10);
                 const rowData = sheetData[rowIndex];
 
-                // Clear previous row selection highlight for this mode
                 const prevSelected = dataDisplay.querySelector(`.selected-${selectionMode}`);
                 if (prevSelected) {
                     prevSelected.classList.remove(`selected-${selectionMode}`);
                 }
 
-                // Apply new selection
                 if (selectionMode === 'first') {
                     firstStudent = { data: rowData, index: rowIndex };
                     firstStudentInfo.textContent = `Selected: Row ${rowIndex + 1} (${rowData[0] || ''})`;
@@ -377,9 +517,47 @@
                     box.classList.remove('selection-required');
                     box.classList.add('selection-complete');
                 }
+            } else if (selectionMode === 'first-topic-column' || selectionMode === 'last-topic-column') {
+                const clickedCell = event.target;
+                if (clickedCell.tagName !== 'TD') return;
+
+                const columnIndex = clickedCell.cellIndex;
+                const headerText = sheetData[0][columnIndex] || `Column ${columnIndex + 1}`;
+                
+                let box, prevSelectedClass, newSelectedClass;
+
+                if (selectionMode === 'first-topic-column') {
+                    firstTopicColumnIndex = columnIndex;
+                    topicInfo.textContent = `Selected: ${headerText}`;
+                    box = selectTopicBtn.closest('.selection-box');
+                    prevSelectedClass = '.selected-first-topic-column';
+                    newSelectedClass = 'selected-first-topic-column';
+                } else { // last-topic-column
+                    lastTopicColumnIndex = columnIndex;
+                    lastTopicInfo.textContent = `Selected: ${headerText}`;
+                    box = selectLastTopicBtn.closest('.selection-box');
+                    prevSelectedClass = '.selected-last-topic-column';
+                    newSelectedClass = 'selected-last-topic-column';
+                }
+
+                box.classList.remove('selection-required');
+                box.classList.add('selection-complete');
+
+                document.querySelectorAll(prevSelectedClass).forEach(el => {
+                    el.classList.remove(newSelectedClass);
+                });
+
+                document.querySelectorAll(`#data-display tr`).forEach(row => {
+                    const cell = row.children[columnIndex];
+                    if (cell) {
+                        cell.classList.add(newSelectedClass);
+                    }
+                });
+            } else {
+                return;
             }
 
-            // Reset selection mode
+            // Reset selection mode after any successful selection
             selectionMode = null;
             selectionStatus.textContent = '';
         }
@@ -387,6 +565,11 @@
         function resetSelections() {
             firstStudent = null;
             lastStudent = null;
+            firstTopicColumnIndex = null;
+            lastTopicColumnIndex = null;
+            topicNameRowIndex = null;
+            resourceRowIndex = null;
+            maxScoreRowIndex = null;
             headerImageData = null;
             gradeColumnIndex = null;
 
@@ -394,6 +577,11 @@
             lastStudentInfo.textContent = 'Not selected';
             headerInfo.textContent = 'Not selected';
             gradeColumnInfo.textContent = 'Not selected';
+            topicRowInfo.textContent = 'Not selected';
+            resourceRowInfo.textContent = 'Not selected';
+            topicInfo.textContent = 'Not selected';
+            lastTopicInfo.textContent = 'Not selected';
+            maxScoreInfo.textContent = 'Not selected';
             headerImageInput.value = null; // Reset the file input
             selectionStatus.textContent = '';
             selectionMode = null;
@@ -405,15 +593,36 @@
             });
 
             // Remove all selection highlight classes from the table
-            const highlightedRows = dataDisplay.querySelectorAll('.selected-first, .selected-last, .selected-grade-column');
-            highlightedRows.forEach(row => {
-                row.classList.remove('selected-first', 'selected-last', 'selected-grade-column');
+            const highlightedElements = dataDisplay.querySelectorAll(
+                '.selected-first, .selected-last, .selected-grade-column, .selected-max-score-row, .selected-topic-row, ' +
+                '.selected-first, .selected-last, .selected-grade-column, .selected-max-score-row, .selected-topic-row, .selected-resource-row, ' +
+                '.selected-first-topic-column, .selected-last-topic-column'
+            );
+            highlightedElements.forEach(el => {
+                el.classList.remove(
+                    'selected-first', 'selected-last', 'selected-grade-column', 'selected-max-score-row', 'selected-topic-row',
+                    'selected-first', 'selected-last', 'selected-grade-column', 'selected-max-score-row', 'selected-topic-row', 'selected-resource-row',
+                    'selected-first-topic-column', 'selected-last-topic-column'
+                );
             });
         }
 
-        function generatePdf() {
+        async function generatePdf() {
+          try {
+            // Run analysis first
+            if (!validateAnalysisData()) {
+                return;
+            }
+
+            // --- PDF Generation Logic ---
+
             if (!firstStudent || !lastStudent) {
                 alert('Please select both a first and a last student before generating the PDF.');
+                return;
+            }
+
+            if (firstTopicColumnIndex === null || lastTopicColumnIndex === null) {
+                alert('Please select both the first and last topic columns before generating the PDF.');
                 return;
             }
 
@@ -423,15 +632,24 @@
                 alert('PDF generation library is not loaded. Please check your internet connection and try again.');
                 return;
             }
+            
+            if (typeof QRCode === 'undefined') {
+                alert('QR Code library is not loaded. Please check your internet connection and try again.');
+                return;
+            }
 
             const doc = new jsPDF();
 
-            // Determine the start and end of the loop, regardless of selection order
-            const startIndex = Math.min(firstStudent.index, lastStudent.index);
-            const endIndex = Math.max(firstStudent.index, lastStudent.index);
+            // Determine the start and end of the student loop, regardless of selection order
+            const studentStartIndex = Math.min(firstStudent.index, lastStudent.index);
+            const studentEndIndex = Math.max(firstStudent.index, lastStudent.index);
+
+            // Determine the start and end of the topic column loop
+            const topicColStartIndex = Math.min(firstTopicColumnIndex, lastTopicColumnIndex);
+            const topicColEndIndex = Math.max(firstTopicColumnIndex, lastTopicColumnIndex);
 
             let isFirstPage = true;
-            for (let i = startIndex; i <= endIndex; i++) {
+            for (let i = studentStartIndex; i <= studentEndIndex; i++) {
                 if (!isFirstPage) {
                     doc.addPage();
                 }
@@ -445,27 +663,263 @@
                 if (headerImageData) {
                     // Add the image. Let's make it 170mm wide and place it near the top.
                     // jsPDF uses mm as units. A4 is 210mm wide.
-                    const imageWidth = 170;
-                    doc.addImage(headerImageData, 'PNG', 20, 15, imageWidth, 0); // width is set, height is auto-calculated
-                    yPos += 40; // Adjust starting Y position for text below the image
+                    const imageWidth = 190;
+                    doc.addImage(headerImageData, 'PNG', 10, 15, imageWidth, 0); // width is set, height is auto-calculated
+                    yPos += 30; // Adjust starting Y position for text below the image
                 }
 
                 // Add the student name
-                doc.setFontSize(22);
-                doc.text(studentName, 20, yPos);
+                doc.setFontSize(18);
+                doc.text(studentName, 10, yPos);
+                yPos += 4; // Move down from the name
 
                 // Add the grade if a column has been selected
                 if (gradeColumnIndex !== null) {
                     const grade = studentData[gradeColumnIndex] || 'N/A';
-                    yPos += 10; // Move down from the name
+                    yPos += 4; // Move down from the name
                     doc.setFontSize(14);
-                    doc.text(`Assessment grade: ${grade}`, 20, yPos);
+                    doc.text(`Assessment grade: ${grade}`, 10, yPos);
+                    yPos += 4; // Move down for topics
+                }
+                
+                // Analyze topics for this specific student
+                const analysisResults = analyzeSingleStudent(i);
+
+                // Add the analysis table to the PDF
+                yPos += 3; // Add some space before the table
+                yPos = drawAnalysisTable(doc, yPos, analysisResults);
+
+                // Add the QR code table for very insecure topics if resources exist
+                if (analysisResults.veryInsecureWithResources.length > 0) {
+                    yPos += 10;
+                    doc.addPage();
+                    yPos = 20;
+                    yPos = await drawQrCodeTable(doc, yPos, analysisResults.veryInsecureWithResources);
                 }
 
                 isFirstPage = false;
             }
 
             doc.save('PLC_Student_Reports.pdf');
+          } catch (error) {
+              console.error("PDF Generation Error:", error);
+              alert("An error occurred while generating the PDF: " + error.message);
+          }
+        }
+        
+        function validateAnalysisData() {
+            if (!firstStudent || !lastStudent || firstTopicColumnIndex === null || lastTopicColumnIndex === null || maxScoreRowIndex === null || topicNameRowIndex === null || resourceRowIndex === null) {
+                alert('Please ensure all selection boxes (including Resource Row) are green before generating the PDF.');
+                return false;
+            }
+            return true;
+        }
+
+        function analyzeSingleStudent(rowIndex) {
+            const secureTopics = [];
+            const insecureTopics = [];
+            const veryInsecureTopics = [];
+            const veryInsecureWithResources = [];
+
+            const topicColStartIndex = Math.min(firstTopicColumnIndex, lastTopicColumnIndex);
+            const topicColEndIndex = Math.max(firstTopicColumnIndex, lastTopicColumnIndex);
+            
+            const studentData = sheetData[rowIndex];
+
+            for (let col = topicColStartIndex; col <= topicColEndIndex; col++) {
+                const studentScore = parseFloat(studentData[col]);
+                
+                // Get max score for this specific topic column from the selected row
+                const maxScoreVal = sheetData[maxScoreRowIndex][col];
+                const maxScore = parseFloat(maxScoreVal);
+
+                if (isNaN(maxScore) || maxScore === 0) continue; // Skip if max score is invalid
+
+                const secureThreshold = maxScore * 0.66;
+                const insecureThreshold = maxScore * 0.33;
+                
+                // Use the selected topicNameRowIndex to get the header
+                let topicHeader = (sheetData[topicNameRowIndex] && sheetData[topicNameRowIndex][col]) ? sheetData[topicNameRowIndex][col] : `Topic ${col + 1}`;
+
+                if (!isNaN(studentScore)) {
+                    if (studentScore >= secureThreshold) {
+                        secureTopics.push(topicHeader);
+                    } else if (studentScore >= insecureThreshold) {
+                        insecureTopics.push(topicHeader);
+                    } else {
+                        veryInsecureTopics.push(topicHeader);
+                        // Get resource for this topic
+                        let resourceVal = (sheetData[resourceRowIndex] && sheetData[resourceRowIndex][col]) ? sheetData[resourceRowIndex][col] : '';
+                        if (resourceVal && String(resourceVal).trim() !== '') {
+                            veryInsecureWithResources.push({ topic: topicHeader, resource: resourceVal });
+                        }
+                    }
+                }
+            }
+            
+            return { veryInsecureTopics, insecureTopics, secureTopics, veryInsecureWithResources };
+        }
+
+        function drawAnalysisTable(doc, yPos, analysisResults) {
+            const { veryInsecureTopics, insecureTopics, secureTopics } = analysisResults;
+            const headers = ["Very Insecure Topics", "Insecure Topics", "Secure Topics"];
+            const tableData = [veryInsecureTopics, insecureTopics, secureTopics];
+
+            const startX = 10;
+            const colWidth = 63; // (210 - 2*10 margin) / 3 columns = 190 / 3 = 63.33.
+            const headerHeight = 10;
+            const tableTitle = "Topic Security Analysis";
+            const fontSize = 8;
+            const padding = 2;
+            const lineHeight = 4; // Approximate line height for wrapping
+
+            // Check if there's enough space for title and header
+            if (yPos + 20 > doc.internal.pageSize.height - 10) { 
+                doc.addPage();
+                yPos = 15; // Reset yPos for new page
+            }
+
+            // Draw table title
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text(tableTitle, startX, yPos);
+            yPos += 5; // Space after title
+
+            // Draw headers
+            doc.setFontSize(fontSize); // Smaller font for table content
+            doc.setFont(undefined, 'bold');
+            headers.forEach((header, i) => {
+                doc.rect(startX + (i * colWidth), yPos, colWidth, headerHeight);
+                doc.text(header, startX + (i * colWidth) + padding, yPos + 6);
+            });
+            doc.setFont(undefined, 'normal');
+            yPos += headerHeight;
+
+            const maxRows = Math.max(...tableData.map(col => col.length));
+            for (let i = 0; i < maxRows; i++) {
+                let maxLines = 1;
+                const rowContent = [];
+
+                // Calculate height needed for this row based on wrapped text
+                tableData.forEach((colData, j) => {
+                    const text = String(colData[i] || '');
+                    const splitText = doc.splitTextToSize(text, colWidth - (padding * 2));
+                    rowContent.push(splitText);
+                    if (splitText.length > maxLines) {
+                        maxLines = splitText.length;
+                    }
+                });
+
+                const currentRowHeight = (maxLines * lineHeight) + (padding * 2);
+
+                // Check page break
+                if (yPos + currentRowHeight > doc.internal.pageSize.height - 10) {
+                    doc.addPage();
+                    yPos = 15;
+                }
+
+                // Draw cells and text
+                rowContent.forEach((lines, j) => {
+                    doc.rect(startX + (j * colWidth), yPos, colWidth, currentRowHeight);
+                    doc.text(lines, startX + (j * colWidth) + padding, yPos + padding + 3);
+                });
+                yPos += currentRowHeight;
+            }
+
+            return yPos; // Return the new Y position
+        }
+
+        async function drawQrCodeTable(doc, yPos, resources) {
+            const headers = ["Topic", "Resource QR"];
+            const startX = 10;
+            const totalWidth = 190;
+            const halfWidth = totalWidth / 2;
+            const qrColWidth = 25;
+            const topicColWidth = halfWidth - qrColWidth;
+            const headerHeight = 10;
+            const fontSize = 8;
+            const padding = 2;
+            
+            // Title
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text("Resources for Very Insecure Topics", startX, yPos);
+            yPos += 5;
+
+            // Headers
+            doc.setFontSize(fontSize);
+            doc.setFont(undefined, 'bold');
+            // Left Header
+            doc.rect(startX, yPos, topicColWidth, headerHeight);
+            doc.text(headers[0], startX + padding, yPos + 6);
+            
+            doc.rect(startX + topicColWidth, yPos, qrColWidth, headerHeight);
+            doc.text(headers[1], startX + topicColWidth + padding, yPos + 6);
+            
+            // Right Header
+            doc.rect(startX + halfWidth, yPos, topicColWidth, headerHeight);
+            doc.text(headers[0], startX + halfWidth + padding, yPos + 6);
+            
+            doc.rect(startX + halfWidth + topicColWidth, yPos, qrColWidth, headerHeight);
+            doc.text(headers[1], startX + halfWidth + topicColWidth + padding, yPos + 6);
+
+            doc.setFont(undefined, 'normal');
+            yPos += headerHeight;
+
+            for (let i = 0; i < resources.length; i += 2) {
+                const item1 = resources[i];
+                const item2 = resources[i+1];
+
+                // Generate QR Code Data URL
+                const qrDataUrl1 = await QRCode.toDataURL(String(item1.resource), { margin: 1 });
+
+                // Calculate height needed for Topic text wrapping
+                const splitText1 = doc.splitTextToSize(item1.topic, topicColWidth - (padding * 2));
+                const textHeight1 = (splitText1.length * 4) + (padding * 2);
+
+                let qrDataUrl2 = null;
+                let splitText2 = [];
+                let textHeight2 = 0;
+
+                if (item2) {
+                     qrDataUrl2 = await QRCode.toDataURL(String(item2.resource), { margin: 1 });
+                     splitText2 = doc.splitTextToSize(item2.topic, topicColWidth - (padding * 2));
+                     textHeight2 = (splitText2.length * 4) + (padding * 2);
+                }
+
+                const qrHeight = 25; // Fixed height for QR cell to fit 20x20 QR
+                const rowHeight = Math.max(textHeight1, textHeight2, qrHeight);
+
+                // Check page break
+                if (yPos + rowHeight > doc.internal.pageSize.height - 10) {
+                    doc.addPage();
+                    yPos = 15;
+                }
+
+                // Draw Item 1 (Left)
+                doc.rect(startX, yPos, topicColWidth, rowHeight);
+                doc.text(splitText1, startX + padding, yPos + padding + 3);
+
+                doc.rect(startX + topicColWidth, yPos, qrColWidth, rowHeight);
+                const qrSize = 20;
+                const qrX1 = startX + topicColWidth + (qrColWidth - qrSize) / 2;
+                const qrY = yPos + (rowHeight - qrSize) / 2;
+                doc.addImage(qrDataUrl1, 'PNG', qrX1, qrY, qrSize, qrSize);
+
+                // Draw Item 2 (Right)
+                const startX2 = startX + halfWidth;
+                doc.rect(startX2, yPos, topicColWidth, rowHeight);
+                doc.rect(startX2 + topicColWidth, yPos, qrColWidth, rowHeight);
+
+                if (item2) {
+                    doc.text(splitText2, startX2 + padding, yPos + padding + 3);
+                    const qrX2 = startX2 + topicColWidth + (qrColWidth - qrSize) / 2;
+                    doc.addImage(qrDataUrl2, 'PNG', qrX2, qrY, qrSize, qrSize);
+                }
+
+                yPos += rowHeight;
+            }
+            return yPos;
         }
     </script>
 </body>
