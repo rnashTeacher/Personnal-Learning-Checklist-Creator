@@ -56,6 +56,8 @@
         #tracker-table-container {
             margin-top: 30px;
             overflow-x: auto;
+            overflow-y: auto;
+            max-height: 70vh;
         }
         
         table {
@@ -82,6 +84,18 @@
             z-index: 1;
         }
 
+        /* Make the first column sticky */
+        th:first-child,
+        td:first-child {
+            position: sticky;
+            left: 0;
+        }
+
+        /* Ensure the top-left cell is on top of both the header and the first column */
+        th:first-child {
+            z-index: 2;
+        }
+
         .header-content {
             writing-mode: vertical-rl;
             transform: rotate(180deg);
@@ -96,6 +110,14 @@
         }
 
         tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* The sticky cells need a background color to hide the content scrolling under them */
+        td:first-child {
+            background-color: #ffffff;
+        }
+        tr:nth-child(even) td:first-child {
             background-color: #f9f9f9;
         }
     </style>
